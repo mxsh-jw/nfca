@@ -125,7 +125,7 @@
       font-weight: 600;
     }
 
-    /* 产品序列号：14 位字符，单独缩小字号并禁止换行 */
+    /* 产品序列号：14 位字符，缩小字号并禁止换行 */
     .card-serial .value {
       font-size: clamp(13px, 3.4vw, 18px);
       letter-spacing: -0.01em;
@@ -196,7 +196,7 @@
        * DISPLAY_ORDER  = HTML 页面卡片的显示顺序
        */
       const FIELDS_URL = [
-        { key: 'portPower', label: '端口功率', bytes: 4, unit: 'W' },
+        { key: 'portPower', label: '端口功率', bytes: 3, unit: 'W' },
         { key: 'model', label: '产品型号', bytes: 6, unit: '' },
         { key: 'brand', label: '产品品牌', bytes: 9, unit: '' },
         { key: 'batteryManufacturer', label: '电池厂商', bytes: 21, unit: '' },
@@ -239,7 +239,7 @@
       const decoder = new TextDecoder('utf-8');
 
       const DEMO_VALUES = {
-        portPower: '0200',
+        portPower: '200',
         model: 'MN0201',
         brand: '明矽微',
         batteryManufacturer: '上海明矽微电子',
@@ -269,6 +269,10 @@
         return out;
       }
 
+      /**
+       * 按 UTF-8 字节长度补齐/截断到指定字节长度。
+       * 不足部分使用空格 0x20 右填充。
+       */
       function padToBytes(value, byteLength) {
         const source = String(value ?? '');
         const out = new Uint8Array(byteLength).fill(0x20);
@@ -343,6 +347,9 @@
         return '';
       }
 
+      /**
+       * 按 FIELDS_URL 的顺序和字节长度解析连续参数。
+       */
       function parseContinuous(payload) {
         const bytes = encoder.encode(payload);
         const data = {};
@@ -366,13 +373,13 @@
         const grid = document.getElementById('grid');
         grid.textContent = '';
 
+        // 按 DISPLAY_ORDER / FIELDS_DISPLAY 渲染，保持旧显示顺序
         for (const field of FIELDS_DISPLAY) {
           const rawValue = String(data[field.key] ?? '').trim();
 
           const card = document.createElement('article');
           card.className = 'card';
 
-          // 序列号卡片单独加 class，用于缩小字号、禁止换行
           if (field.key === 'serialNumber') {
             card.classList.add('card-serial');
           }
