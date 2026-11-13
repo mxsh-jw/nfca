@@ -12,8 +12,6 @@
       --muted: #6b7890;
       --line: #e6ebf5;
       --brand: #2f6bff;
-      --warn: #b45309;
-      --warn-bg: #fff7ed;
       --shadow: 0 12px 30px rgba(23, 32, 51, 0.08);
     }
 
@@ -127,6 +125,14 @@
       font-weight: 600;
     }
 
+    /* 产品序列号：14 位字符，单独缩小字号并禁止换行 */
+    .card-serial .value {
+      font-size: clamp(13px, 3.4vw, 18px);
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      word-break: normal;
+    }
+
     .unit {
       flex: none;
       color: var(--brand);
@@ -152,11 +158,19 @@
       .value {
         font-size: 22px;
       }
+
+      .card-serial .value {
+        font-size: clamp(12px, 3.4vw, 16px);
+      }
     }
 
     @media (max-width: 420px) {
       .grid {
         grid-template-columns: 1fr;
+      }
+
+      .card-serial .value {
+        font-size: 17px;
       }
     }
   </style>
@@ -178,9 +192,8 @@
       'use strict';
 
       /**
-       * 注意：
-       * FIELDS_URL 的顺序 = URL 连续参数中的字节顺序（新顺序）
-       * DISPLAY_ORDER = HTML 页面卡片的显示顺序（保持旧顺序）
+       * FIELDS_URL 的顺序 = URL 连续参数中的字节顺序
+       * DISPLAY_ORDER  = HTML 页面卡片的显示顺序
        */
       const FIELDS_URL = [
         { key: 'portPower', label: '端口功率', bytes: 4, unit: 'W' },
@@ -256,10 +269,6 @@
         return out;
       }
 
-      /**
-       * 按 UTF-8 字节长度补齐/截断到指定字节长度。
-       * 不足部分使用空格 0x20 右填充。
-       */
       function padToBytes(value, byteLength) {
         const source = String(value ?? '');
         const out = new Uint8Array(byteLength).fill(0x20);
@@ -334,9 +343,6 @@
         return '';
       }
 
-      /**
-       * 按 FIELDS_URL 的顺序和字节长度解析连续参数。
-       */
       function parseContinuous(payload) {
         const bytes = encoder.encode(payload);
         const data = {};
@@ -360,12 +366,16 @@
         const grid = document.getElementById('grid');
         grid.textContent = '';
 
-        // 按 DISPLAY_ORDER / FIELDS_DISPLAY 渲染，保持旧显示顺序
         for (const field of FIELDS_DISPLAY) {
           const rawValue = String(data[field.key] ?? '').trim();
 
           const card = document.createElement('article');
           card.className = 'card';
+
+          // 序列号卡片单独加 class，用于缩小字号、禁止换行
+          if (field.key === 'serialNumber') {
+            card.classList.add('card-serial');
+          }
 
           const label = document.createElement('div');
           label.className = 'label';
