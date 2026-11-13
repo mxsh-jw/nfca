@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>电池信息</title>
+  <style>
+    :root {
+      --bg: #f2f5fb;
+      --card: #ffffff;
+      --text: #172033;
+      --muted: #6b7890;
+      --line: #e6ebf5;
+      --brand: #2f6bff;
+      --warn: #b45309;
+      --warn-bg: #fff7ed;
+      --shadow: 0 12px 30px rgba(23, 32, 51, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(47, 107, 255, 0.16), transparent 32rem),
+        radial-gradient(circle at 100% 0%, rgba(22, 199, 154, 0.14), transparent 28rem),
+        var(--bg);
+    }
+
+    .app {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 28px 16px 48px;
+    }
+
+    .hero {
+      margin-bottom: 20px;
+    }
+
+    .hero h1 {
+      margin: 0 0 8px;
+      font-size: clamp(28px, 5vw, 40px);
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .notice {
+      margin: 18px 0;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.8);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .notice[hidden] {
+      display: none;
+    }
+
+    .notice.ok {
+      border-color: rgba(22, 199, 154, 0.28);
+      background: rgba(22, 199, 154, 0.08);
+      color: #087f65;
+    }
+
+    .notice.warn {
+      border-color: rgba(180, 83, 9, 0.25);
+      background: var(--warn-bg);
+      color: var(--warn);
+    }
+
+    .notice.info {
+      border-color: rgba(47, 107, 255, 0.18);
+      background: rgba(47, 107, 255, 0.06);
+      color: #2754c8;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 112px;
+      padding: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(230, 235, 245, 0.9);
+      border-radius: 18px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .value-line {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      min-width: 0;
+      margin-top: 12px;
+    }
+
+    .value {
+      font-size: clamp(20px, 3.2vw, 28px);
+      font-weight: 750;
+      line-height: 1.15;
+      word-break: break-all;
+    }
+
+    .value.empty {
+      color: #b8c0d0;
+      font-weight: 600;
+    }
+
+    .unit {
+      flex: none;
+      color: var(--brand);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .raw {
+      margin-top: 18px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .raw summary {
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .raw pre {
+      max-height: 180px;
+      margin: 10px 0 0;
+      overflow: auto;
+      color: #39445a;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    @media (max-width: 640px) {
+      .app {
+        padding-top: 20px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .card {
+        min-height: 104px;
+        padding: 14px;
+      }
+
+      .value {
+        font-size: 22px;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="hero">
+      <h1>电池信息</h1>
+      <p>NFC 碰一碰查看</p>
+    </header>
+
+    <div id="notice" class="notice" role="status"></div>
+
+    <section id="grid" class="grid" aria-live="polite"></section>
+
+    <details class="raw">
+      <summary>查看原始连续参数</summary>
+      <pre id="rawPayload"></pre>
+    </details>
+  </main>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const FIELDS = [
+        { key: 'batteryHealth', label: '电池健康状况', bytes: 4, unit: '分' },
+        { key: 'cycleCount', label: '电池循环次数', bytes: 4, unit: '次' },
+        { key: 'batteryLife', label: '电池寿命', bytes: 4, unit: '%' },
+        { key: 'voltage', label: '电池电压', bytes: 4, unit: 'V' },
+        { key: 'current', label: '电池电流', bytes: 4, unit: 'A' },
+        { key: 'temperature', label: '电池温度', bytes: 4, unit: '度' },
+        { key: 'currentCapacity', label: '当前容量', bytes: 4, unit: 'mAh' },
+        { key: 'maxCapacity', label: '最大容量', bytes: 4, unit: 'mAh' },
+        { key: 'portPower', label: '端口功率', bytes: 4, unit: 'W' },
+        { key: 'model', label: '产品型号', bytes: 8, unit: '' },
+        { key: 'brand', label: '产品品牌', bytes: 27, unit: '' },
+        { key: 'batteryManufacturer', label: '电池厂商', bytes: 45, unit: '' },
+        { key: 'manufacturer', label: '生产厂商', bytes: 45, unit: '' },
+        { key: 'productionDate', label: '生产时间', bytes: 10, unit: '' },
+        { key: 'serialNumber', label: '产品序列号', bytes: 14, unit: '' }
+      ];
+
+      const TOTAL_BYTES = FIELDS.reduce((sum, field) => sum + field.bytes, 0);
+      const encoder = new TextEncoder();
+      const decoder = new TextDecoder('utf-8');
+
+      const DEMO_VALUES = {
+        batteryHealth: '99.5',
+        cycleCount: '0001',
+        batteryLife: '99.9',
+        voltage: '12.5',
+        current: '10.5',
+        temperature: '25.0',
+        currentCapacity: '1000',
+        maxCapacity: '5000',
+        portPower: '0200',
+        model: 'MN020100',
+        brand: '明矽微',
+        batteryManufacturer: '上海明矽微',
+        manufacturer: '上海明矽微',
+        productionDate: '2027-01-01',
+        serialNumber: 'FF0F0000000101'
+      };
+
+      function concatBytes(chunks) {
+        const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+        const out = new Uint8Array(total);
+        let offset = 0;
+
+        for (const chunk of chunks) {
+          out.set(chunk, offset);
+          offset += chunk.length;
+        }
+
+        return out;
+      }
+
+      /**
+       * 将字符串按 UTF-8 字节长度补齐/截断到指定字节长度。
+       * 不足部分使用空格 0x20 右填充。
+       */
+      function padToBytes(value, byteLength) {
+        const source = String(value ?? '');
+        const out = new Uint8Array(byteLength).fill(0x20);
+        let offset = 0;
+
+        for (const char of source) {
+          const bytes = encoder.encode(char);
+          if (offset + bytes.length > byteLength) break;
+          out.set(bytes, offset);
+          offset += bytes.length;
+        }
+
+        return out;
+      }
+
+      function buildPayload(values) {
+        return decoder.decode(
+          concatBytes(FIELDS.map((field) => padToBytes(values[field.key], field.bytes)))
+        );
+      }
+
+      function isFieldParamKey(key) {
+        return FIELDS.some((field) => field.key === key || field.label === key);
+      }
+
+      /**
+       * 兼容命名参数形式，例如：
+       * ?batteryHealth=99.5&voltage=12.5
+       * ?电池健康状况=99.5&电池电压=12.5
+       */
+      function parseNamedParams(params) {
+        const data = {};
+        let found = false;
+
+        for (const field of FIELDS) {
+          let value = null;
+
+          for (const key of [field.key, field.label]) {
+            if (params.has(key)) {
+              value = params.get(key);
+              break;
+            }
+          }
+
+          if (value !== null) {
+            found = true;
+            data[field.key] = value.trim();
+          } else {
+            data[field.key] = '';
+          }
+        }
+
+        return found ? data : null;
+      }
+
+      /**
+       * 获取连续参数：
+       * 1. 优先读取 ?data=... / ?payload=... / ?raw=... / ?v=... / ?value=...
+       * 2. 兼容 ?<连续字符串>，例如 ?99.5000112.5...
+       */
+      function getContinuousPayload(params) {
+        if (!location.search || location.search === '?') return '';
+
+        const commonKeys = ['data', 'payload', 'raw', 'v', 'value', 'param'];
+
+        for (const key of commonKeys) {
+          if (params.has(key)) {
+            return params.get(key) ?? '';
+          }
+        }
+
+        const entries = Array.from(params.entries());
+
+        if (entries.length === 1) {
+          const [key, value] = entries[0];
+
+          if (isFieldParamKey(key)) return '';
+          if (value === '') return key;
+          return value;
+        }
+
+        return '';
+      }
+
+      /**
+       * 按字段顺序和字节长度解析连续参数。
+       */
+      function parseContinuous(payload) {
+        const bytes = encoder.encode(payload);
+        const data = {};
+        let offset = 0;
+
+        for (const field of FIELDS) {
+          const slice = bytes.slice(offset, offset + field.bytes);
+          const value = decoder.decode(slice).replace(/\u0000/g, '').trim();
+          data[field.key] = value;
+          offset += field.bytes;
+        }
+
+        return {
+          data,
+          byteLength: bytes.length,
+          expectedLength: TOTAL_BYTES
+        };
+      }
+
+      function render(data) {
+        const grid = document.getElementById('grid');
+        grid.textContent = '';
+
+        for (const field of FIELDS) {
+          const rawValue = String(data[field.key] ?? '').trim();
+
+          const card = document.createElement('article');
+          card.className = 'card';
+
+          const label = document.createElement('div');
+          label.className = 'label';
+          label.textContent = field.label;
+
+          const valueLine = document.createElement('div');
+          valueLine.className = 'value-line';
+
+          const value = document.createElement('span');
+          value.className = 'value';
+          value.textContent = rawValue || '—';
+          if (!rawValue) value.classList.add('empty');
+          valueLine.appendChild(value);
+
+          if (field.unit && rawValue) {
+            const unit = document.createElement('span');
+            unit.className = 'unit';
+            unit.textContent = field.unit;
+            valueLine.appendChild(unit);
+          }
+
+          card.append(label, valueLine);
+          grid.appendChild(card);
+        }
+      }
+
+      function setNotice(text, type = 'info') {
+        const el = document.getElementById('notice');
+        el.textContent = text;
+        el.className = `notice ${type}`;
+        el.hidden = !text;
+      }
+
+      function main() {
+        const params = new URLSearchParams(location.search);
+        const namedData = parseNamedParams(params);
+
+        let data = null;
+        let meta = null;
+        let rawPayload = '';
+
+        if (namedData) {
+          data = namedData;
+          setNotice('已检测到 URL 命名参数，已按字段含义直接渲染。', 'ok');
+        } else {
+          rawPayload = getContinuousPayload(params);
+
+          if (rawPayload) {
+            const parsed = parseContinuous(rawPayload);
+            data = parsed.data;
+            meta = parsed;
+
+            if (parsed.byteLength < TOTAL_BYTES) {
+              setNotice(
+                `已按固定字节长度解析连续参数：实际 ${parsed.byteLength} 字节，期望 ${TOTAL_BYTES} 字节。短值请按字段字节长度右补空格后再拼接。`,
+                'warn'
+              );
+            } else {
+              setNotice(
+                `已按固定字节长度解析连续参数：共 ${parsed.byteLength} 字节（期望 ${TOTAL_BYTES} 字节）。`,
+                'ok'
+              );
+            }
+          } else {
+            rawPayload = buildPayload(DEMO_VALUES);
+            const parsed = parseContinuous(rawPayload);
+            data = parsed.data;
+            meta = parsed;
+
+            setNotice(
+              `未检测到 URL 连续参数，当前展示示例数据。连续参数应按顺序拼接，短值按字段字节长度右补空格，总长 ${TOTAL_BYTES} 字节。`,
+              'info'
+            );
+          }
+        }
+
+        document.getElementById('rawPayload').textContent =
+          rawPayload || '（命名参数模式无需连续切片）';
+        render(data);
+      }
+
+      main();
+    })();
+  </script>
+</body>
+</html>
