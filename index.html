@@ -180,7 +180,7 @@
       <p>NFC 碰一碰查看</p>
     </header>
 
-    <div id="notice" class="notice" role="status"></div>
+    <div id="notice" class="notice" role="status" hidden></div>
 
     <section id="grid" class="grid" aria-live="polite"></section>
   </main>
@@ -200,9 +200,9 @@
         { key: 'maxCapacity', label: '最大容量', bytes: 4, unit: 'mAh' },
         { key: 'portPower', label: '端口功率', bytes: 4, unit: 'W' },
         { key: 'model', label: '产品型号', bytes: 8, unit: '' },
-        { key: 'brand', label: '产品品牌', bytes: 27, unit: '' },
-        { key: 'batteryManufacturer', label: '电池厂商', bytes: 45, unit: '' },
-        { key: 'manufacturer', label: '生产厂商', bytes: 45, unit: '' },
+        { key: 'brand', label: '产品品牌', bytes: 9, unit: '' },
+        { key: 'batteryManufacturer', label: '电池厂商', bytes: 21, unit: '' },
+        { key: 'manufacturer', label: '生产厂商', bytes: 21, unit: '' },
         { key: 'productionDate', label: '生产时间', bytes: 10, unit: '' },
         { key: 'serialNumber', label: '产品序列号', bytes: 14, unit: '' }
       ];
@@ -223,8 +223,8 @@
         portPower: '0200',
         model: 'MN020100',
         brand: '明矽微',
-        batteryManufacturer: '上海明矽微',
-        manufacturer: '上海明矽微',
+        batteryManufacturer: '上海明矽微电子',
+        manufacturer: '上海明矽微电子',
         productionDate: '2027-01-01',
         serialNumber: 'FF0F0000000101'
       };
@@ -242,10 +242,6 @@
         return out;
       }
 
-      /**
-       * 将字符串按 UTF-8 字节长度补齐/截断到指定字节长度。
-       * 不足部分使用空格 0x20 右填充。
-       */
       function padToBytes(value, byteLength) {
         const source = String(value ?? '');
         const out = new Uint8Array(byteLength).fill(0x20);
@@ -271,11 +267,6 @@
         return FIELDS.some((field) => field.key === key || field.label === key);
       }
 
-      /**
-       * 兼容命名参数形式，例如：
-       * ?batteryHealth=99.5&voltage=12.5
-       * ?电池健康状况=99.5&电池电压=12.5
-       */
       function parseNamedParams(params) {
         const data = {};
         let found = false;
@@ -301,11 +292,6 @@
         return found ? data : null;
       }
 
-      /**
-       * 获取连续参数：
-       * 1. 优先读取 ?data=... / ?payload=... / ?raw=... / ?v=... / ?value=...
-       * 2. 兼容 ?<连续字符串>，例如 ?99.5000112.5...
-       */
       function getContinuousPayload(params) {
         if (!location.search || location.search === '?') return '';
 
@@ -330,9 +316,6 @@
         return '';
       }
 
-      /**
-       * 按字段顺序和字节长度解析连续参数。
-       */
       function parseContinuous(payload) {
         const bytes = encoder.encode(payload);
         const data = {};
@@ -395,6 +378,7 @@
       }
 
       function main() {
+        const hasQuery = location.search && location.search !== '?';
         const params = new URLSearchParams(location.search);
         const namedData = parseNamedParams(params);
 
@@ -402,19 +386,24 @@
 
         if (namedData) {
           data = namedData;
-          setNotice('已检测到 URL 命名参数，已按字段含义直接渲染。', 'ok');
+          setNotice('');
         } else {
           const rawPayload = getContinuousPayload(params);
 
           if (rawPayload) {
             const parsed = parseContinuous(rawPayload);
             data = parsed.data;
-            setNotice('已解析 URL 连续参数。', 'ok');
+            setNotice('');
           } else {
             const demoPayload = buildPayload(DEMO_VALUES);
             const parsed = parseContinuous(demoPayload);
             data = parsed.data;
-            setNotice('未检测到 URL 连续参数，当前展示示例数据。', 'info');
+
+            if (!hasQuery) {
+              setNotice('未检测到 URL 连续参数，当前展示示例数据。', 'info');
+            } else {
+              setNotice('');
+            }
           }
         }
 
