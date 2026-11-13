@@ -76,18 +76,6 @@
       display: none;
     }
 
-    .notice.ok {
-      border-color: rgba(22, 199, 154, 0.28);
-      background: rgba(22, 199, 154, 0.08);
-      color: #087f65;
-    }
-
-    .notice.warn {
-      border-color: rgba(180, 83, 9, 0.25);
-      background: var(--warn-bg);
-      color: var(--warn);
-    }
-
     .notice.info {
       border-color: rgba(47, 107, 255, 0.18);
       background: rgba(47, 107, 255, 0.06);
@@ -189,7 +177,19 @@
     (() => {
       'use strict';
 
-      const FIELDS = [
+      /**
+       * 注意：
+       * FIELDS_URL 的顺序 = URL 连续参数中的字节顺序（新顺序）
+       * DISPLAY_ORDER = HTML 页面卡片的显示顺序（保持旧顺序）
+       */
+      const FIELDS_URL = [
+        { key: 'portPower', label: '端口功率', bytes: 4, unit: 'W' },
+        { key: 'model', label: '产品型号', bytes: 6, unit: '' },
+        { key: 'brand', label: '产品品牌', bytes: 9, unit: '' },
+        { key: 'batteryManufacturer', label: '电池厂商', bytes: 21, unit: '' },
+        { key: 'manufacturer', label: '生产厂商', bytes: 21, unit: '' },
+        { key: 'productionDate', label: '生产时间', bytes: 10, unit: '' },
+        { key: 'serialNumber', label: '产品序列号', bytes: 14, unit: '' },
         { key: 'batteryHealth', label: '电池健康状况', bytes: 4, unit: '分' },
         { key: 'cycleCount', label: '电池循环次数', bytes: 4, unit: '次' },
         { key: 'batteryLife', label: '电池寿命', bytes: 4, unit: '%' },
@@ -197,21 +197,42 @@
         { key: 'current', label: '电池电流', bytes: 4, unit: 'A' },
         { key: 'temperature', label: '电池温度', bytes: 4, unit: '度' },
         { key: 'currentCapacity', label: '当前容量', bytes: 4, unit: 'mAh' },
-        { key: 'maxCapacity', label: '最大容量', bytes: 4, unit: 'mAh' },
-        { key: 'portPower', label: '端口功率', bytes: 4, unit: 'W' },
-        { key: 'model', label: '产品型号', bytes: 8, unit: '' },
-        { key: 'brand', label: '产品品牌', bytes: 9, unit: '' },
-        { key: 'batteryManufacturer', label: '电池厂商', bytes: 21, unit: '' },
-        { key: 'manufacturer', label: '生产厂商', bytes: 21, unit: '' },
-        { key: 'productionDate', label: '生产时间', bytes: 10, unit: '' },
-        { key: 'serialNumber', label: '产品序列号', bytes: 14, unit: '' }
+        { key: 'maxCapacity', label: '最大容量', bytes: 4, unit: 'mAh' }
       ];
 
-      const TOTAL_BYTES = FIELDS.reduce((sum, field) => sum + field.bytes, 0);
+      const DISPLAY_ORDER = [
+        'batteryHealth',
+        'cycleCount',
+        'batteryLife',
+        'voltage',
+        'current',
+        'temperature',
+        'currentCapacity',
+        'maxCapacity',
+        'portPower',
+        'model',
+        'brand',
+        'batteryManufacturer',
+        'manufacturer',
+        'productionDate',
+        'serialNumber'
+      ];
+
+      const FIELD_BY_KEY = Object.fromEntries(FIELDS_URL.map((field) => [field.key, field]));
+      const FIELDS_DISPLAY = DISPLAY_ORDER.map((key) => FIELD_BY_KEY[key]);
+
+      const TOTAL_BYTES = FIELDS_URL.reduce((sum, field) => sum + field.bytes, 0);
       const encoder = new TextEncoder();
       const decoder = new TextDecoder('utf-8');
 
       const DEMO_VALUES = {
+        portPower: '0200',
+        model: 'MN0201',
+        brand: '明矽微',
+        batteryManufacturer: '上海明矽微电子',
+        manufacturer: '上海明矽微电子',
+        productionDate: '2027-01-01',
+        serialNumber: 'FF0F0000000101',
         batteryHealth: '99.5',
         cycleCount: '0001',
         batteryLife: '99.9',
@@ -219,14 +240,7 @@
         current: '10.5',
         temperature: '25.0',
         currentCapacity: '1000',
-        maxCapacity: '5000',
-        portPower: '0200',
-        model: 'MN020100',
-        brand: '明矽微',
-        batteryManufacturer: '上海明矽微电子',
-        manufacturer: '上海明矽微电子',
-        productionDate: '2027-01-01',
-        serialNumber: 'FF0F0000000101'
+        maxCapacity: '5000'
       };
 
       function concatBytes(chunks) {
@@ -242,6 +256,10 @@
         return out;
       }
 
+      /**
+       * 按 UTF-8 字节长度补齐/截断到指定字节长度。
+       * 不足部分使用空格 0x20 右填充。
+       */
       function padToBytes(value, byteLength) {
         const source = String(value ?? '');
         const out = new Uint8Array(byteLength).fill(0x20);
@@ -259,19 +277,19 @@
 
       function buildPayload(values) {
         return decoder.decode(
-          concatBytes(FIELDS.map((field) => padToBytes(values[field.key], field.bytes)))
+          concatBytes(FIELDS_URL.map((field) => padToBytes(values[field.key], field.bytes)))
         );
       }
 
       function isFieldParamKey(key) {
-        return FIELDS.some((field) => field.key === key || field.label === key);
+        return FIELDS_URL.some((field) => field.key === key || field.label === key);
       }
 
       function parseNamedParams(params) {
         const data = {};
         let found = false;
 
-        for (const field of FIELDS) {
+        for (const field of FIELDS_URL) {
           let value = null;
 
           for (const key of [field.key, field.label]) {
@@ -316,12 +334,15 @@
         return '';
       }
 
+      /**
+       * 按 FIELDS_URL 的顺序和字节长度解析连续参数。
+       */
       function parseContinuous(payload) {
         const bytes = encoder.encode(payload);
         const data = {};
         let offset = 0;
 
-        for (const field of FIELDS) {
+        for (const field of FIELDS_URL) {
           const slice = bytes.slice(offset, offset + field.bytes);
           const value = decoder.decode(slice).replace(/\u0000/g, '').trim();
           data[field.key] = value;
@@ -339,7 +360,8 @@
         const grid = document.getElementById('grid');
         grid.textContent = '';
 
-        for (const field of FIELDS) {
+        // 按 DISPLAY_ORDER / FIELDS_DISPLAY 渲染，保持旧显示顺序
+        for (const field of FIELDS_DISPLAY) {
           const rawValue = String(data[field.key] ?? '').trim();
 
           const card = document.createElement('article');
