@@ -146,32 +146,6 @@
       font-weight: 700;
     }
 
-    .raw {
-      margin-top: 18px;
-      padding: 12px 14px;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      background: rgba(255, 255, 255, 0.72);
-    }
-
-    .raw summary {
-      cursor: pointer;
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 600;
-    }
-
-    .raw pre {
-      max-height: 180px;
-      margin: 10px 0 0;
-      overflow: auto;
-      color: #39445a;
-      font-size: 12px;
-      line-height: 1.5;
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
-
     @media (max-width: 640px) {
       .app {
         padding-top: 20px;
@@ -209,11 +183,6 @@
     <div id="notice" class="notice" role="status"></div>
 
     <section id="grid" class="grid" aria-live="polite"></section>
-
-    <details class="raw">
-      <summary>查看原始连续参数</summary>
-      <pre id="rawPayload"></pre>
-    </details>
   </main>
 
   <script>
@@ -430,46 +399,25 @@
         const namedData = parseNamedParams(params);
 
         let data = null;
-        let meta = null;
-        let rawPayload = '';
 
         if (namedData) {
           data = namedData;
           setNotice('已检测到 URL 命名参数，已按字段含义直接渲染。', 'ok');
         } else {
-          rawPayload = getContinuousPayload(params);
+          const rawPayload = getContinuousPayload(params);
 
           if (rawPayload) {
             const parsed = parseContinuous(rawPayload);
             data = parsed.data;
-            meta = parsed;
-
-            if (parsed.byteLength < TOTAL_BYTES) {
-              setNotice(
-                `已按固定字节长度解析连续参数：实际 ${parsed.byteLength} 字节，期望 ${TOTAL_BYTES} 字节。短值请按字段字节长度右补空格后再拼接。`,
-                'warn'
-              );
-            } else {
-              setNotice(
-                `已按固定字节长度解析连续参数：共 ${parsed.byteLength} 字节（期望 ${TOTAL_BYTES} 字节）。`,
-                'ok'
-              );
-            }
+            setNotice('已解析 URL 连续参数。', 'ok');
           } else {
-            rawPayload = buildPayload(DEMO_VALUES);
-            const parsed = parseContinuous(rawPayload);
+            const demoPayload = buildPayload(DEMO_VALUES);
+            const parsed = parseContinuous(demoPayload);
             data = parsed.data;
-            meta = parsed;
-
-            setNotice(
-              `未检测到 URL 连续参数，当前展示示例数据。连续参数应按顺序拼接，短值按字段字节长度右补空格，总长 ${TOTAL_BYTES} 字节。`,
-              'info'
-            );
+            setNotice('未检测到 URL 连续参数，当前展示示例数据。', 'info');
           }
         }
 
-        document.getElementById('rawPayload').textContent =
-          rawPayload || '（命名参数模式无需连续切片）';
         render(data);
       }
 
